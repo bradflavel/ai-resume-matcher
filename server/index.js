@@ -8,15 +8,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 🚫 Limit: 5 requests per IP per hour
 const limiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
+  windowMs: 60 * 60 * 1000, 
   max: 5,
   message: { error: 'Too many requests — try again in an hour.' },
 });
 app.use('/api/', limiter);
 
-// ✅ OpenAI configuration (v4 SDK)
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
