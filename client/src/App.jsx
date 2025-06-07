@@ -20,7 +20,7 @@ function App() {
     setResult('Analyzing...');
 
     try {
-      const response = await axios.post('http://localhost:3001/api/match-pdf-url', formData, {
+      const response = await axios.post('https://resume-matcher-backend-z0h9.onrender.com/api/match-pdf-url', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setResult(response.data.result);
