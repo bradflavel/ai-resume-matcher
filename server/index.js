@@ -4,7 +4,6 @@ const rateLimit = require('express-rate-limit');
 const OpenAI = require('openai');
 const multer = require('multer');
 const pdfParse = require('pdf-parse');
-const fetch = require('node-fetch');
 require('dotenv').config();
 
 const app = express();
