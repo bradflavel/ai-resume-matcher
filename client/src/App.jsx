@@ -3,16 +3,25 @@ import axios from 'axios';
 import './App.css';
 
 function App() {
-  const [resume, setResume] = useState('');
-  const [jobAd, setJobAd] = useState('');
+  const [resumeFile, setResumeFile] = useState(null);
+  const [jobAdUrl, setJobAdUrl] = useState('');
   const [result, setResult] = useState('');
 
   const handleSubmit = async () => {
-    setResult('Loading...');
+    if (!resumeFile || !jobAdUrl) {
+      setResult('Please upload a resume and enter a job ad URL.');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('resume', resumeFile);
+    formData.append('jobAdUrl', jobAdUrl);
+
+    setResult('Analyzing...');
+
     try {
-      const response = await axios.post('http://localhost:3001/api/match', {
-        resume,
-        jobAd,
+      const response = await axios.post('http://localhost:3001/api/match-pdf-url', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
       setResult(response.data.result);
     } catch (err) {
@@ -23,17 +32,13 @@ function App() {
   return (
     <div className="container">
       <h1>AI Resume Matcher</h1>
-      <textarea
-        placeholder="Paste your resume here..."
-        value={resume}
-        onChange={(e) => setResume(e.target.value)}
-      />
-      <textarea
-        placeholder="Paste the job ad here..."
-        value={jobAd}
-        onChange={(e) => setJobAd(e.target.value)}
-      />
-      <button onClick={handleSubmit}>Match Resume to Job Ad</button>
+      <label>Upload Resume (PDF)</label>
+      <input type="file" accept=".pdf" onChange={(e) => setResumeFile(e.target.files[0])} />
+
+      <label>Paste Job Ad URL</label>
+      <input type="text" value={jobAdUrl} onChange={(e) => setJobAdUrl(e.target.value)} placeholder="https://..." />
+
+      <button onClick={handleSubmit}>Analyze Match</button>
       <pre>{result}</pre>
     </div>
   );
