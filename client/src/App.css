@@ -1,4 +1,4 @@
-.container {
+/* .container {
   max-width: 800px;
   margin: auto;
   padding: 2rem;
@@ -14,10 +14,16 @@ button {
   margin-bottom: 1rem;
 }
 pre {
-  background: #f4f4f4;
+  background: #f9f9f9;
   padding: 1rem;
   white-space: pre-wrap;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  color: #333;
+  font-family: monospace;
+  font-size: 0.95rem;
 }
+
 label {
   font-weight: bold;
-}
+} */
