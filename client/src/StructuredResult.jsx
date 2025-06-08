@@ -2,6 +2,7 @@ import React from 'react';
 
 const parseSections = (text) => {
   const sections = {
+    jobTitle: '',
     score: '',
     matches: [],
     weaknesses: [],
@@ -9,21 +10,23 @@ const parseSections = (text) => {
   };
 
   const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
-
   let current = '';
 
   for (let line of lines) {
-    if (/^1\..*score/i.test(line)) {
-      sections.score = line.replace(/^1\.\s*/, '');
-      current = 'score';
-    } else if (/^2\./.test(line)) {
+    const lower = line.toLowerCase();
+
+    if (lower.startsWith('step 1')) {
+      sections.jobTitle = line.replace(/^step 1:\s*/i, '');
+    } else if (lower.startsWith('1. suitability score')) {
+      sections.score = line.replace(/^1\.\s*/i, '');
+    } else if (lower.startsWith('2. key matching points')) {
       current = 'matches';
-    } else if (/^3\./.test(line)) {
+    } else if (lower.startsWith('3. weak') || lower.startsWith('3. missing')) {
       current = 'weaknesses';
-    } else if (/^4\./.test(line)) {
+    } else if (lower.startsWith('4. suggestions')) {
       current = 'suggestions';
-    } else if (line.startsWith('-') && current && current !== 'score') {
-      sections[current].push(line.replace(/^-+\s*/, ''));
+    } else if ((line.startsWith('-') || /^\d+\./.test(line)) && current) {
+      sections[current].push(line.replace(/^[-\d.]+\s*/, ''));
     }
   }
 
@@ -31,10 +34,17 @@ const parseSections = (text) => {
 };
 
 const StructuredResult = ({ rawText }) => {
-  const { score, matches, weaknesses, suggestions } = parseSections(rawText);
+  const { jobTitle, score, matches, weaknesses, suggestions } = parseSections(rawText);
 
   return (
     <div className="space-y-6 text-sm leading-relaxed">
+      {jobTitle && (
+        <div>
+          <h3 className="text-lg font-semibold text-muted mb-1">📌 Job Summary</h3>
+          <p className="bg-background border border-border p-3 rounded">{jobTitle}</p>
+        </div>
+      )}
+
       {score && (
         <div>
           <h3 className="text-lg font-semibold text-primary mb-1">🎯 Match Score</h3>

@@ -39,11 +39,14 @@ function App() {
 
     setLoading(true);
     setResult('');
+    
 
     try {
       const response = await axios.post(`${API_BASE}/api/match-pdf-url`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
+
+      console.log('🧠 Raw AI response:', response.data.result);
 
       setResult(response.data.result);
     } catch (err) {
