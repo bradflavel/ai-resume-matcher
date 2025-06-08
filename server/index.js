@@ -44,17 +44,26 @@ app.post('/api/match-pdf-url', upload.single('resume'), async (req, res) => {
     const trimmedJobAd = jobAdHtml.slice(0, 8000);
 
     const prompt = `
-You are an expert technical recruiter. Analyze the resume and job ad with ruthless honesty.
+You are an expert technical recruiter. Analyze the resume and job ad with ruthless honesty. Speak **directly to the applicant** (use "you", not "they").
 
-Step 1: What is the job title and industry for this job ad?
+Step 1: Identify the job title and industry based on the job ad. Be specific.
 
-Step 2: Compare the resume and job ad. Your output must have **these 4 sections**:
-1. Suitability Score (0–100): Use strict scoring. If the resume lacks relevant experience, give under 30. Do NOT give 70+ unless the resume is clearly well-suited to the job.
-2. Key Matching Points: Only include highly relevant, specific matches from the resume.
-3. Weak or Missing Qualifications: Explicitly list what's missing.
-4. Suggestions for Improvement: Specific ways to improve this resume for this job.
+Step 2: Give feedback in **second person voice** using the following structure:
 
-Do not assume anything not stated in the resume.
+1. Suitability Score (0–100): Be strict. Use this scale:
+   - 0–20: No relevant qualifications
+   - 21–50: Some overlap but not competitive
+   - 51–70: Moderate match, may need improvement
+   - 71–90: Strong match
+   - 91–100: Excellent fit, clearly qualified
+
+2. Key Matching Points: Describe what makes **you** suitable based on the resume (e.g. “You have experience in...”).
+
+3. Weak or Missing Qualifications: Point out what **you lack** or what is not mentioned (e.g. “You don’t mention any experience with...”).
+
+4. Suggestions for Improvement: Offer practical tips. Focus on what **you can improve**, add, or reframe to better match this job.
+
+Do not assume anything that isn’t written in the resume. Be concise but realistic.
 
 Resume:
 ${trimmedResume}
@@ -62,6 +71,7 @@ ${trimmedResume}
 Job Ad:
 ${trimmedJobAd}
 `;
+
 
     const completion = await openai.chat.completions.create({
       model: MODEL,
