@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import StructuredResult from './StructuredResult';
 
 function App() {
   const [resumeFile, setResumeFile] = useState(null);
@@ -109,9 +110,7 @@ function App() {
             <div className="flex-1 bg-card border border-border p-6 rounded-lg shadow overflow-x-auto">
               <h2 className="text-lg font-semibold mb-4">Result:</h2>
               {result ? (
-                <pre className="text-sm whitespace-pre-wrap font-mono text-muted-foreground">
-                  {result}
-                </pre>
+                <StructuredResult rawText={result} />
               ) : (
                 <p className="text-muted-foreground text-sm italic">No result yet.</p>
               )}
