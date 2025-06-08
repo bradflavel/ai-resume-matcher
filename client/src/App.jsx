@@ -10,7 +10,8 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
 
-  // Detect system dark mode on first load
+  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
   useEffect(() => {
     const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     setDarkMode(systemPrefersDark);
@@ -39,16 +40,14 @@ function App() {
     setResult('');
 
     try {
-      const response = await axios.post(
-        'https://resume-matcher-backend-z0h9.onrender.com/api/match-pdf-url',
-        formData,
-        {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        }
-      );
+      const response = await axios.post(`${API_BASE}/api/match-pdf-url`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
       setResult(response.data.result);
     } catch (err) {
-      toast.error('Error: ' + err.message);
+      console.error('Submission error:', err);
+      toast.error('Error: ' + (err.response?.data?.error || err.message));
     } finally {
       setLoading(false);
     }

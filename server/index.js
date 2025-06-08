@@ -24,8 +24,12 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// Route 1: Direct resume + jobAd comparison (pasted text)
 app.post('/api/match', async (req, res) => {
   const { resume, jobAd } = req.body;
+
+  const trimmedResume = resume.slice(0, 5000);
+  const trimmedJobAd = jobAd.slice(0, 5000);
 
   const prompt = `
 Compare the following resume with the job ad and provide:
@@ -34,10 +38,10 @@ Compare the following resume with the job ad and provide:
 3. Suggestions for improvement
 
 Resume:
-${resume}
+${trimmedResume}
 
 Job Ad:
-${jobAd}
+${trimmedJobAd}
 `;
 
   try {
@@ -55,6 +59,7 @@ ${jobAd}
   }
 });
 
+// Route 2: Resume PDF + Job Ad URL
 app.post('/api/match-pdf-url', upload.single('resume'), async (req, res) => {
   try {
     const jobAdUrl = req.body.jobAdUrl;
@@ -65,29 +70,45 @@ app.post('/api/match-pdf-url', upload.single('resume'), async (req, res) => {
     }
 
     const resumeText = (await pdfParse(resumeFile.buffer)).text;
-
     const jobAdResponse = await fetch(jobAdUrl);
     const jobAdHtml = await jobAdResponse.text();
 
-    const result = `
-Mock result:
-Resume Text (first 500 chars):
-${resumeText.slice(0, 500)}
+    // Trim both inputs to avoid context overflow
+    const trimmedResume = resumeText.slice(0, 6000);
+    const trimmedJobAd = jobAdHtml.slice(0, 8000);
 
-Job Ad Text (first 500 chars):
-${jobAdHtml.slice(0, 500)}
+    console.log('Trimmed resume length:', trimmedResume.length);
+    console.log('Trimmed job ad length:', trimmedJobAd.length);
 
-(Once OpenAI is enabled, this will return a real comparison.)
+    const prompt = `
+Compare the following resume (from PDF) with the job ad (from webpage). Provide:
+1. A suitability score out of 100
+2. Key matching points
+3. Missing or weak qualifications
+4. Suggestions for improvement
+
+Resume:
+${trimmedResume}
+
+Job Ad:
+${trimmedJobAd}
 `;
 
-    res.json({ result });
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-3.5-turbo',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 1000,
+      temperature: 0.7,
+    });
+
+    res.json({ result: completion.choices[0].message.content });
   } catch (err) {
     console.error('Error in /api/match-pdf-url:', err);
     res.status(500).json({ error: 'Failed to process resume or job ad.' });
   }
 });
 
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`✅ Server is running at http://localhost:${PORT}`);
 });
