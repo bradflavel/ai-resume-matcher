@@ -7,7 +7,7 @@ import StructuredResult from './StructuredResult';
 function App() {
   const [resumeFile, setResumeFile] = useState(null);
   const [jobAdInput, setJobAdInput] = useState('');
-  const [inputMode, setInputMode] = useState('link'); // "link" or "text"
+  const [inputMode, setInputMode] = useState('link');
   const [result, setResult] = useState('');
   const [loading, setLoading] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
@@ -58,20 +58,19 @@ function App() {
   };
 
   return (
-    <div className={`${darkMode ? 'dark' : ''} font-sans`}>
-      <div className="min-h-screen bg-background text-foreground flex flex-col">
-        <header className="px-6 py-4 bg-muted flex justify-between items-center border-b border-border">
-          <h1 className="text-lg font-bold tracking-tight">AI Resume Matcher</h1>
-          <button
-            onClick={toggleTheme}
-            className="text-xs px-3 py-1 rounded border border-border bg-background hover:bg-muted transition"
-          >
-            {darkMode ? 'Dark' : 'Light'}
-          </button>
-        </header>
+    <div className={`${darkMode ? 'dark' : ''} font-sans min-h-screen flex flex-col`}>
+      <header className="px-6 py-4 bg-muted flex justify-between items-center border-b border-border">
+        <h1 className="text-lg font-bold tracking-tight">AI Resume Matcher</h1>
+        <button
+          onClick={toggleTheme}
+          className="text-xs px-3 py-1 rounded border border-border bg-background hover:bg-muted transition"
+        >
+          {darkMode ? 'Dark' : 'Light'}
+        </button>
+      </header>
 
-        <main className="max-w-7xl mx-auto flex flex-col md:flex-row gap-10 px-4 pt-16 pb-10">
-          {/* Left Panel */}
+      <main className="flex-grow">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row gap-10 px-4 pt-16 pb-10">
           <div className="basis-[25%] min-w-[300px] bg-card border border-border p-6 rounded-lg shadow">
             <h2 className="text-lg font-semibold mb-4">Upload Resume (PDF)</h2>
             <input
@@ -129,8 +128,7 @@ function App() {
             )}
           </div>
 
-          {/* Right Panel */}
-          <div className="basis-[55%] flex-grow bg-card border border-border p-6 rounded-lg shadow overflow-x-auto">
+          <div className="basis-[55%] flex-grow min-h-[500px] bg-card border border-border p-6 rounded-lg shadow overflow-x-auto">
             <h2 className="text-lg font-semibold mb-4">Result:</h2>
             {result ? (
               <StructuredResult rawText={result} />
@@ -138,14 +136,14 @@ function App() {
               <p className="text-muted-foreground text-sm italic">No result yet.</p>
             )}
           </div>
-        </main>
+        </div>
+      </main>
 
-        <footer className="text-center text-xs py-4 bg-muted text-muted-foreground border-t border-border">
-          &copy; {new Date().getFullYear()} AI Resume Matcher by Brad Flavel
-        </footer>
+      <footer className="text-center text-xs py-4 bg-muted text-muted-foreground border-t border-border">
+        &copy; {new Date().getFullYear()} AI Resume Matcher by Brad Flavel
+      </footer>
 
-        <ToastContainer />
-      </div>
+      <ToastContainer />
     </div>
   );
 }
