@@ -24,42 +24,9 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Route 1: Direct resume + jobAd comparison (pasted text)
-app.post('/api/match', async (req, res) => {
-  const { resume, jobAd } = req.body;
+const MODEL = process.env.OPENAI_MODEL || 'gpt-3.5-turbo';
 
-  const trimmedResume = resume.slice(0, 5000);
-  const trimmedJobAd = jobAd.slice(0, 5000);
-
-  const prompt = `
-Compare the following resume with the job ad and provide:
-1. A match score out of 100
-2. A short explanation
-3. Suggestions for improvement
-
-Resume:
-${trimmedResume}
-
-Job Ad:
-${trimmedJobAd}
-`;
-
-  try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 700,
-      temperature: 0.7,
-    });
-
-    res.json({ result: completion.choices[0].message.content });
-  } catch (error) {
-    console.error('OpenAI Error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Route 2: Resume PDF + Job Ad URL
+// 📄 Route: Resume PDF + Job Ad URL
 app.post('/api/match-pdf-url', upload.single('resume'), async (req, res) => {
   try {
     const jobAdUrl = req.body.jobAdUrl;
@@ -73,19 +40,21 @@ app.post('/api/match-pdf-url', upload.single('resume'), async (req, res) => {
     const jobAdResponse = await fetch(jobAdUrl);
     const jobAdHtml = await jobAdResponse.text();
 
-    // Trim both inputs to avoid context overflow
     const trimmedResume = resumeText.slice(0, 6000);
     const trimmedJobAd = jobAdHtml.slice(0, 8000);
 
-    console.log('Trimmed resume length:', trimmedResume.length);
-    console.log('Trimmed job ad length:', trimmedJobAd.length);
-
     const prompt = `
-Compare the following resume (from PDF) with the job ad (from webpage). Provide:
-1. A suitability score out of 100
-2. Key matching points
-3. Missing or weak qualifications
-4. Suggestions for improvement
+You are an expert technical recruiter. Analyze the resume and job ad with ruthless honesty.
+
+Step 1: What is the job title and industry for this job ad?
+
+Step 2: Compare the resume and job ad. Your output must have **these 4 sections**:
+1. Suitability Score (0–100): Use strict scoring. If the resume lacks relevant experience, give under 30. Do NOT give 70+ unless the resume is clearly well-suited to the job.
+2. Key Matching Points: Only include highly relevant, specific matches from the resume.
+3. Weak or Missing Qualifications: Explicitly list what's missing.
+4. Suggestions for Improvement: Specific ways to improve this resume for this job.
+
+Do not assume anything not stated in the resume.
 
 Resume:
 ${trimmedResume}
@@ -95,10 +64,10 @@ ${trimmedJobAd}
 `;
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
+      model: MODEL,
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 1000,
-      temperature: 0.7,
+      temperature: 0.4,
     });
 
     res.json({ result: completion.choices[0].message.content });
@@ -110,5 +79,5 @@ ${trimmedJobAd}
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`✅ Server is running at http://localhost:${PORT}`);
+  console.log(`✅ Server running at http://localhost:${PORT}`);
 });
