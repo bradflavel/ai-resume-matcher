@@ -6,7 +6,8 @@ import StructuredResult from './StructuredResult';
 
 function App() {
   const [resumeFile, setResumeFile] = useState(null);
-  const [jobAdUrl, setJobAdUrl] = useState('');
+  const [jobAdInput, setJobAdInput] = useState('');
+  const [inputMode, setInputMode] = useState('link'); // "link" or "text"
   const [result, setResult] = useState('');
   const [loading, setLoading] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
@@ -28,18 +29,18 @@ function App() {
   };
 
   const handleSubmit = async () => {
-    if (!resumeFile || !jobAdUrl) {
-      toast.error('Please upload a resume and enter a job ad URL.');
+    if (!resumeFile || !jobAdInput) {
+      toast.error('Please upload a resume and enter job ad information.');
       return;
     }
 
     const formData = new FormData();
     formData.append('resume', resumeFile);
-    formData.append('jobAdUrl', jobAdUrl);
+    formData.append('inputMode', inputMode);
+    formData.append(inputMode === 'link' ? 'jobAdUrl' : 'jobAdText', jobAdInput);
 
     setLoading(true);
     setResult('');
-    
 
     try {
       const response = await axios.post(`${API_BASE}/api/match-pdf-url`, formData, {
@@ -47,7 +48,6 @@ function App() {
       });
 
       console.log('🧠 Raw AI response:', response.data.result);
-
       setResult(response.data.result);
     } catch (err) {
       console.error('Submission error:', err);
@@ -70,54 +70,73 @@ function App() {
           </button>
         </header>
 
-        <main className="flex-grow px-4 pt-16 pb-10">
-          <div className="max-w-6xl mx-auto flex flex-col md:flex-row gap-10 items-start">
-            {/* Upload Form */}
-            <div className="flex-1 bg-card border border-border p-6 rounded-lg shadow">
-              <h2 className="text-lg font-semibold mb-4">Upload Resume (PDF)</h2>
-              <input
-                type="file"
-                accept=".pdf"
-                onChange={(e) => setResumeFile(e.target.files[0])}
-                className="w-full text-foreground mb-2"
-              />
-              {resumeFile && (
-                <p className="text-sm text-green-500 mb-4 truncate">
-                  Selected: {resumeFile.name}
-                </p>
-              )}
+        <main className="max-w-7xl mx-auto flex flex-col md:flex-row gap-10 px-4 pt-16 pb-10">
+          {/* Left Panel */}
+          <div className="basis-[25%] min-w-[300px] bg-card border border-border p-6 rounded-lg shadow">
+            <h2 className="text-lg font-semibold mb-4">Upload Resume (PDF)</h2>
+            <input
+              type="file"
+              accept=".pdf"
+              onChange={(e) => setResumeFile(e.target.files[0])}
+              className="w-full text-foreground mb-2"
+            />
+            {resumeFile && (
+              <p className="text-sm text-green-500 mb-4 truncate">
+                Selected: {resumeFile.name}
+              </p>
+            )}
 
-              <label className="block font-semibold mb-2">Paste Job Ad URL</label>
+            <div className="flex items-center gap-4 mb-2">
+              <label className="font-semibold">Job Ad Input Mode:</label>
+              <select
+                value={inputMode}
+                onChange={(e) => setInputMode(e.target.value)}
+                className="border border-border rounded bg-background text-foreground p-1"
+              >
+                <option value="link">Paste Link</option>
+                <option value="text">Paste Full Text</option>
+              </select>
+            </div>
+
+            {inputMode === 'link' ? (
               <input
                 type="text"
-                value={jobAdUrl}
-                onChange={(e) => setJobAdUrl(e.target.value)}
+                value={jobAdInput}
+                onChange={(e) => setJobAdInput(e.target.value)}
                 placeholder="https://..."
                 className="w-full p-2 rounded bg-background border border-border text-foreground"
               />
+            ) : (
+              <textarea
+                rows={8}
+                value={jobAdInput}
+                onChange={(e) => setJobAdInput(e.target.value)}
+                placeholder="Paste full job ad text here..."
+                className="w-full p-2 rounded bg-background border border-border text-foreground"
+              />
+            )}
 
-              <button
-                onClick={handleSubmit}
-                className="mt-4 w-full px-4 py-2 bg-primary text-primary-foreground font-medium rounded hover:opacity-90 transition"
-                disabled={loading}
-              >
-                {loading ? 'Analyzing...' : 'Analyze Match'}
-              </button>
+            <button
+              onClick={handleSubmit}
+              className="mt-4 w-full px-4 py-2 bg-primary text-primary-foreground font-medium rounded hover:opacity-90 transition"
+              disabled={loading}
+            >
+              {loading ? 'Analyzing...' : 'Analyze Match'}
+            </button>
 
-              {loading && (
-                <div className="mt-4 animate-spin rounded-full h-8 w-8 border-t-2 border-blue-500 border-solid mx-auto" />
-              )}
-            </div>
+            {loading && (
+              <div className="mt-4 animate-spin rounded-full h-8 w-8 border-t-2 border-blue-500 border-solid mx-auto" />
+            )}
+          </div>
 
-            {/* Results */}
-            <div className="flex-1 bg-card border border-border p-6 rounded-lg shadow overflow-x-auto">
-              <h2 className="text-lg font-semibold mb-4">Result:</h2>
-              {result ? (
-                <StructuredResult rawText={result} />
-              ) : (
-                <p className="text-muted-foreground text-sm italic">No result yet.</p>
-              )}
-            </div>
+          {/* Right Panel */}
+          <div className="basis-[55%] flex-grow bg-card border border-border p-6 rounded-lg shadow overflow-x-auto">
+            <h2 className="text-lg font-semibold mb-4">Result:</h2>
+            {result ? (
+              <StructuredResult rawText={result} />
+            ) : (
+              <p className="text-muted-foreground text-sm italic">No result yet.</p>
+            )}
           </div>
         </main>
 

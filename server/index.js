@@ -24,60 +24,56 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const MODEL = process.env.OPENAI_MODEL || 'gpt-3.5-turbo';
+const MODEL = process.env.OPENAI_MODEL || 'gpt-4';
 
-// 📄 Route: Resume PDF + Job Ad URL
+// POST /api/match-pdf-url
 app.post('/api/match-pdf-url', upload.single('resume'), async (req, res) => {
   try {
-    const jobAdUrl = req.body.jobAdUrl;
+    const { inputMode, jobAdUrl, jobAdText } = req.body;
     const resumeFile = req.file;
 
-    if (!jobAdUrl || !resumeFile) {
-      return res.status(400).json({ error: 'Missing job ad URL or resume PDF.' });
+    if (!resumeFile || !inputMode || (inputMode === 'link' && !jobAdUrl) || (inputMode === 'text' && !jobAdText)) {
+      return res.status(400).json({ error: 'Missing required input fields.' });
     }
 
     const resumeText = (await pdfParse(resumeFile.buffer)).text;
-    const jobAdResponse = await fetch(jobAdUrl);
-    const jobAdHtml = await jobAdResponse.text();
-
     const trimmedResume = resumeText.slice(0, 6000);
-    const trimmedJobAd = jobAdHtml.slice(0, 8000);
+
+    let jobAdContent = '';
+    if (inputMode === 'text') {
+      jobAdContent = jobAdText.slice(0, 8000);
+    } else {
+      const response = await fetch(jobAdUrl);
+      jobAdContent = (await response.text()).slice(0, 8000);
+    }
 
     const prompt = `
-You are an expert technical recruiter. Analyze the resume and job ad with ruthless honesty. Speak **directly to the applicant** (use "you", not "they").
+You are an expert technical recruiter. Analyze the resume and job ad with ruthless honesty. Speak directly to the applicant ("you").
 
-Step 1: Identify the job title and industry based on the job ad. Be specific.
+Step 1: Identify the job title and industry.
 
-Step 2: Give feedback in **second person voice** using the following structure:
+Step 2: Give feedback using this format:
 
-1. Suitability Score (0–100): Be strict. Use this scale:
-   - 0–20: No relevant qualifications
-   - 21–50: Some overlap but not competitive
-   - 51–70: Moderate match, may need improvement
-   - 71–90: Strong match
-   - 91–100: Excellent fit, clearly qualified
+1. Suitability Score (just one number between 0 and 100): Write it like "Suitability Score: 27".
 
-2. Key Matching Points: Describe what makes **you** suitable based on the resume (e.g. “You have experience in...”).
+2. Key Matching Points: List what makes you suitable (e.g., "You have experience in...").
 
-3. Weak or Missing Qualifications: Point out what **you lack** or what is not mentioned (e.g. “You don’t mention any experience with...”).
+3. Weak or Missing Qualifications: Point out what's missing (e.g., "You don’t mention...").
 
-4. Suggestions for Improvement: Offer practical tips. Focus on what **you can improve**, add, or reframe to better match this job.
-
-Do not assume anything that isn’t written in the resume. Be concise but realistic.
+4. Suggestions for Improvement: Suggest specific improvements.
 
 Resume:
 ${trimmedResume}
 
 Job Ad:
-${trimmedJobAd}
+${jobAdContent}
 `;
-
 
     const completion = await openai.chat.completions.create({
       model: MODEL,
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 1000,
-      temperature: 0.4,
+      temperature: 0.7,
     });
 
     res.json({ result: completion.choices[0].message.content });
