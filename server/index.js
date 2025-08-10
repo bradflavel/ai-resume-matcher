@@ -24,7 +24,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const MODEL = process.env.OPENAI_MODEL || 'gpt-4';
+const MODEL = process.env.OPENAI_MODEL || 'gpt-5';
 
 // POST /api/match-pdf-url
 app.post('/api/match-pdf-url', upload.single('resume'), async (req, res) => {
