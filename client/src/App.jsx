@@ -56,19 +56,18 @@ function App() {
     setResult('');
 
     try {
-      // POST request to backend
-      const response = await axios.post(`${API_BASE}/api/match-pdf-url`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      // POST request to backend (let the browser set Content-Type w/ boundary)
+      const response = await axios.post(`${API_BASE}/api/match-pdf-url`, formData);
 
       console.log('🧠 Raw AI response:', response.data.result);
-      setResult(response.data.result); // Store AI output in state
+      setResult(response.data.result);
     } catch (err) {
       console.error('Submission error:', err);
       toast.error('Error: ' + (err.response?.data?.error || err.message));
     } finally {
-      setLoading(false); // Always stop loading spinner
+      setLoading(false);
     }
+
   };
 
   return (
