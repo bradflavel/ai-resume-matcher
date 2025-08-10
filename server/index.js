@@ -95,12 +95,24 @@ ${jobAdContent}
 `;
 
     // Send the combined prompt to OpenAI for analysis
-    const completion = await openai.chat.completions.create({
+    const isG5Family = /^gpt-5/i.test(MODEL);
+
+    const payload = {
       model: MODEL,
       messages: [{ role: 'user', content: prompt }],
-      max_completion_tokens: 1000, 
-      temperature: 0.7,
-    });
+      ...(isG5Family
+        ? { max_completion_tokens: 1000 } // GPT-5 style
+        : { max_tokens: 1000 }            // Older models
+      ),
+    };
+
+    // GPT-5 only supports default temperature (1) — skip sending it
+    if (!isG5Family) {
+      payload.temperature = 0.7;
+    }
+
+    const completion = await openai.chat.completions.create(payload);
+
 
     // Ship the result back to the client in a simple envelope
     res.json({ result: completion.choices[0].message.content });
