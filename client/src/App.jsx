@@ -45,30 +45,35 @@ function App() {
       return;
     }
 
-    // Create form payload for the API
     const formData = new FormData();
     formData.append('resume', resumeFile);
     formData.append('inputMode', inputMode);
     formData.append(inputMode === 'link' ? 'jobAdUrl' : 'jobAdText', jobAdInput);
 
-    // Reset UI state before request
     setLoading(true);
-    setResult('');
+    // DO NOT clear result here; keep the old one visible on failure
 
     try {
-      // POST request to backend (let the browser set Content-Type w/ boundary)
       const response = await axios.post(`${API_BASE}/api/match-pdf-url`, formData);
 
-      console.log('🧠 Raw AI response:', response.data.result);
-      setResult(response.data.result);
+      console.log('HTTP', response.status, response.data);
+      const text = response.data?.result || '';
+      console.log('result length', text.length);
+
+      if (!text) {
+        toast.error('No analysis returned. Try a smaller PDF or try again.');
+        return;
+      }
+
+      setResult(text); // only set when non-empty
     } catch (err) {
       console.error('Submission error:', err);
       toast.error('Error: ' + (err.response?.data?.error || err.message));
     } finally {
       setLoading(false);
     }
-
   };
+
 
   return (
     <div className={`${darkMode ? 'dark' : ''} font-sans min-h-screen flex flex-col`}>

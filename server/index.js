@@ -113,9 +113,12 @@ ${jobAdContent}
 
     const completion = await openai.chat.completions.create(payload);
 
+    // Debug what we actually got back from the model
+    const out = completion.choices?.[0]?.message?.content || '';
+    console.log('AI result length:', out.length, 'first 120 chars:', out.slice(0, 120));
 
-    // Ship the result back to the client in a simple envelope
-    res.json({ result: completion.choices[0].message.content });
+    // Send it to the client
+    return res.json({ result: out });
   } catch (err) {
     console.error('Error in /api/match-pdf-url:', err);
     res.status(500).json({ error: 'Failed to process resume or job ad.' });
