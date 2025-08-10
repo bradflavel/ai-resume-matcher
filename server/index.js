@@ -118,10 +118,10 @@ app.get('/', (_req, res) => {
 app.get('/healthz', (_req, res) => {
   res.status(200).json({ status: 'ok' });
 });
-console.log(`✅ Server running at http://localhost:${PORT} (healthz v2)`);
 
 // Boot the server — PORT is set by host in production; fallback for local dev
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`✅ Server running at http://localhost:${PORT}`);
+  console.log(`✅ Server running at http://localhost:${PORT} (healthz v2)`);
 });
