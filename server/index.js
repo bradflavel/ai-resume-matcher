@@ -98,8 +98,8 @@ ${jobAdContent}
     const completion = await openai.chat.completions.create({
       model: MODEL,
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: 1000, // cap the response so it doesn't ramble
-      temperature: 0.7, // a little variety, but still focused
+      max_completion_tokens: 1000, 
+      temperature: 0.7,
     });
 
     // Ship the result back to the client in a simple envelope
