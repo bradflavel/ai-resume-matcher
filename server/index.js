@@ -113,47 +113,82 @@ Job Ad:
 ${jobAdContent}
 `;
 
-    // --- Call OpenAI via Responses API --------------
+    // ---------- OpenAI call (Responses API) with fallback ----------
     const isG5 = /^gpt-5/i.test(MODEL);
+
+    // helper to call a model once with reasonable defaults
+    async function runModelOnce(modelName, userPrompt) {
+      const usingG5 = /^gpt-5/i.test(modelName);
+      const params = {
+        model: modelName,
+        input: [
+          { role: 'system', content: 'You are an experienced technical recruiter. Be concise and follow the requested format exactly.' },
+          { role: 'user', content: userPrompt }
+        ],
+        max_output_tokens: 2048,             // give it room to actually write
+        temperature: usingG5 ? 1 : 0.7,      // GPT-5 only supports default (1)
+      };
+      if (usingG5) {
+        params.reasoning = { effort: 'low' };// reduce hidden thinking so we get text
+      }
+      const r = await openai.responses.create(params);
+      return r;
+    }
+
+    // helper to extract text from Responses API result
+    function extractText(r) {
+      if (r.output_text && r.output_text.trim()) return r.output_text.trim();
+      if (Array.isArray(r.output)) {
+        const chunks = [];
+        for (const item of r.output) {
+          if (item.type === 'message' && Array.isArray(item.content)) {
+            for (const c of item.content) {
+              if (typeof c.text === 'string') chunks.push(c.text);
+              if (c.type === 'output_text' && typeof c.output_text === 'string') chunks.push(c.output_text);
+            }
+          }
+        }
+        if (chunks.length) return chunks.join('\n').trim();
+      }
+      return '';
+    }
 
     let aiResp;
     try {
-      aiResp = await openai.responses.create({
-        model: MODEL,
-        input: [
-          // optional system nudge helps structure
-          { role: 'system', content: 'You are an experienced technical recruiter. Be concise and follow the requested format exactly.' },
-          { role: 'user', content: prompt }
-        ],
-        ...(isG5
-          ? { max_output_tokens: 800, temperature: 1 }
-          : { max_output_tokens: 800, temperature: 0.7 }
-        ),
-      });
+      // 1) Try the configured model first (e.g., GPT-5)
+      aiResp = await runModelOnce(MODEL, prompt);
+      console.dir(aiResp, { depth: null });
+
+      let out = extractText(aiResp);
+      const finish = aiResp.incomplete_details?.reason || aiResp.status;
+      console.log('Finish reason:', finish, '| out length:', out.length, '| first 120:', out.slice(0, 120));
+
+      // 2) If empty or cut by token limit, retry once with a reliable non-reasoning model
+      if (!out || finish === 'max_output_tokens') {
+        console.warn('Empty/trimmed output; falling back to gpt-4o-mini…');
+        const fb = await runModelOnce('gpt-4o-mini', prompt);
+        console.dir(fb, { depth: null });
+        out = extractText(fb);
+
+        if (!out) {
+          return res.status(502).json({
+            error: 'Model returned empty text. Please try again with a smaller PDF or simpler job ad.',
+          });
+        }
+      }
+
+      return res.json({ result: out });
     } catch (e) {
       console.error('OpenAI error (responses):', e.status || e.response?.status, e.response?.data || e.message);
       return res.status(502).json({
         error: e.response?.data?.error?.message || e.message || 'AI request failed.',
       });
     }
-
-    // Prefer the unified output field
-    console.dir(aiResp, { depth: null });
-    const out = (aiResp.output_text || '').trim();
-
-    console.log('Final out length:', out.length, 'first 120:', out.slice(0, 120));
-
-    if (!out) {
-      return res.status(502).json({ error: 'Model returned empty text. Please try again.' });
-    }
-
-    return res.json({ result: out });
   } catch (err) {
     console.error('Error in /api/match-pdf-url:', err);
     res.status(500).json({ error: 'Failed to process resume or job ad.' });
   }
 });
-
 
 
 // Health check routes
