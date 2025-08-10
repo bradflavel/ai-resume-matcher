@@ -110,6 +110,15 @@ ${jobAdContent}
   }
 });
 
+// Health check routes
+app.get('/', (_req, res) => {
+  res.status(200).send('OK');
+});
+
+app.get('/healthz', (_req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
 // Boot the server — PORT is set by host in production; fallback for local dev
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
