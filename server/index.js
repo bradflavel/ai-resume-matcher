@@ -36,26 +36,44 @@ app.post('/api/match-pdf-url', upload.single('resume'), async (req, res) => {
     const { inputMode, jobAdUrl, jobAdText } = req.body;
     const resumeFile = req.file;
 
-    // Quick input validation so we fail fast and clearly
+    // Validate required fields
     if (!resumeFile || !inputMode || (inputMode === 'link' && !jobAdUrl) || (inputMode === 'text' && !jobAdText)) {
       return res.status(400).json({ error: 'Missing required input fields.' });
     }
 
     // Extract raw text from the uploaded PDF
-    const resumeText = (await pdfParse(resumeFile.buffer)).text;
-    const trimmedResume = resumeText.slice(0, 6000); // keep token usage sane
+    const resumeText = (await pdfParse(resumeFile.buffer)).text || '';
+    const trimmedResume = resumeText.slice(0, 6000);
 
-    // Get the job ad content based on selected mode (URL vs pasted text)
-    let jobAdContent = '';
-    if (inputMode === 'text') {
-      jobAdContent = jobAdText.slice(0, 8000); // trim just in case someone pastes a novel
-    } else {
-      // Fetch the job ad HTML/text from the URL provided
-      const response = await fetch(jobAdUrl);
-      jobAdContent = (await response.text()).slice(0, 8000);
+    // Basic sanity checks
+    if (!trimmedResume.trim()) {
+      console.log('Resume text was empty after parsing.');
+      return res.status(400).json({ error: 'Could not read text from the uploaded PDF. Try a different PDF.' });
     }
 
-    // Prompt tries to keep the output tidy and predictable for the UI
+    // Get the job ad content
+    let jobAdContent = '';
+    if (inputMode === 'text') {
+      jobAdContent = (jobAdText || '').slice(0, 8000);
+    } else {
+      // Ensure URL looks valid
+      let url = jobAdUrl;
+      if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+      try {
+        const response = await fetch(url);
+        jobAdContent = (await response.text()).slice(0, 8000);
+      } catch (e) {
+        console.error('Fetch job ad failed:', e);
+        return res.status(400).json({ error: 'Failed to fetch job ad from the provided URL.' });
+      }
+    }
+
+    if (!jobAdContent.trim()) {
+      console.log('Job ad content is empty.');
+      return res.status(400).json({ error: 'Job ad content was empty. Check the URL or pasted text.' });
+    }
+
+    // Prompt (unchanged)
     const prompt = `
 You are an experienced technical recruiter. Your job is to evaluate how well this applicant’s resume matches the job ad. 
 Be constructive but direct, focusing on facts from the resume — do not assume skills or experience that are not stated.
@@ -91,39 +109,38 @@ ${trimmedResume}
 
 Job Ad:
 ${jobAdContent}
-
 `;
 
-    // Send the combined prompt to OpenAI for analysis
+    // Build payload for GPT-5 vs older models
     const isG5Family = /^gpt-5/i.test(MODEL);
-
     const payload = {
       model: MODEL,
       messages: [{ role: 'user', content: prompt }],
-      ...(isG5Family
-        ? { max_completion_tokens: 1000 } // GPT-5 style
-        : { max_tokens: 1000 }            // Older models
-      ),
+      ...(isG5Family ? { max_completion_tokens: 1400 } : { max_tokens: 1000 }),
     };
+    if (!isG5Family) payload.temperature = 0.7;
 
-    // GPT-5 only supports default temperature (1) — skip sending it
-    if (!isG5Family) {
-      payload.temperature = 0.7;
+    // Call OpenAI with error trapping
+    let completion;
+    try {
+      completion = await openai.chat.completions.create(payload);
+    } catch (e) {
+      console.error('OpenAI error:', e.status || e.response?.status, e.response?.data || e.message);
+      return res.status(502).json({
+        error: e.response?.data?.error?.message || e.message || 'AI request failed.',
+      });
     }
 
-    const completion = await openai.chat.completions.create(payload);
-
-    // Debug what we actually got back from the model
+    // Send back the content
     const out = completion.choices?.[0]?.message?.content || '';
     console.log('AI result length:', out.length, 'first 120 chars:', out.slice(0, 120));
-
-    // Send it to the client
     return res.json({ result: out });
   } catch (err) {
     console.error('Error in /api/match-pdf-url:', err);
     res.status(500).json({ error: 'Failed to process resume or job ad.' });
   }
 });
+
 
 // Health check routes
 app.get('/', (_req, res) => {

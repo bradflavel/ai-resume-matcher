@@ -156,11 +156,12 @@ function App() {
           <div className="basis-[55%] flex-grow min-h-[500px] bg-card border border-border p-6 rounded-lg shadow overflow-x-auto">
             <h2 className="text-lg font-semibold mb-4">Result:</h2>
             {result ? (
-              <StructuredResult rawText={result} />
+              <pre className="whitespace-pre-wrap text-sm">{result}</pre>
             ) : (
               <p className="text-muted-foreground text-sm italic">No result yet.</p>
             )}
           </div>
+
         </div>
       </main>
 
