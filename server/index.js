@@ -4,78 +4,105 @@ const rateLimit = require('express-rate-limit');
 const OpenAI = require('openai');
 const multer = require('multer');
 const pdfParse = require('pdf-parse');
-require('dotenv').config();
+require('dotenv').config(); // Load .env variables (API keys, PORT, etc.)
 
 const app = express();
-app.set('trust proxy', 1);
-app.use(cors());
-app.use(express.json());
+app.set('trust proxy', 1); // Trust proxy headers (helpful on hosts like Render)
+app.use(cors()); // Allow the frontend (different origin) to call this API
+app.use(express.json()); // Parse JSON bodies on incoming requests
 
+// Basic safety net: throttle how often a single IP can hit the API
 const limiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 5,
+  windowMs: 60 * 60 * 1000, // 1-hour window
+  max: 5, // max 5 requests per hour per IP
   message: { error: 'Too many requests — try again in an hour.' },
 });
-app.use('/api/', limiter);
+app.use('/api/', limiter); // Only throttle the API routes
 
-const upload = multer();
+const upload = multer(); // Handle multipart/form-data (for the PDF upload)
 
+// OpenAI client setup — pulls the key from the environment
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// Prefer OPENAI_MODEL from env; fall back to GPT-5 if not set
 const MODEL = process.env.OPENAI_MODEL || 'gpt-5';
 
 // POST /api/match-pdf-url
+// Accepts: resume PDF + either a job ad URL or the full job ad text
 app.post('/api/match-pdf-url', upload.single('resume'), async (req, res) => {
   try {
     const { inputMode, jobAdUrl, jobAdText } = req.body;
     const resumeFile = req.file;
 
+    // Quick input validation so we fail fast and clearly
     if (!resumeFile || !inputMode || (inputMode === 'link' && !jobAdUrl) || (inputMode === 'text' && !jobAdText)) {
       return res.status(400).json({ error: 'Missing required input fields.' });
     }
 
+    // Extract raw text from the uploaded PDF
     const resumeText = (await pdfParse(resumeFile.buffer)).text;
-    const trimmedResume = resumeText.slice(0, 6000);
+    const trimmedResume = resumeText.slice(0, 6000); // keep token usage sane
 
+    // Get the job ad content based on selected mode (URL vs pasted text)
     let jobAdContent = '';
     if (inputMode === 'text') {
-      jobAdContent = jobAdText.slice(0, 8000);
+      jobAdContent = jobAdText.slice(0, 8000); // trim just in case someone pastes a novel
     } else {
+      // Fetch the job ad HTML/text from the URL provided
       const response = await fetch(jobAdUrl);
       jobAdContent = (await response.text()).slice(0, 8000);
     }
 
+    // Prompt tries to keep the output tidy and predictable for the UI
     const prompt = `
-You are an expert technical recruiter. Analyze the resume and job ad with ruthless honesty. Speak directly to the applicant ("you").
+You are an experienced technical recruiter. Your job is to evaluate how well this applicant’s resume matches the job ad. 
+Be constructive but direct, focusing on facts from the resume — do not assume skills or experience that are not stated.
 
-Step 1: Identify the job title and industry.
+Follow this exact output format (do not add extra text before or after):
 
-Step 2: Give feedback using this format:
+Suitability Score: [0–100]  ← round to nearest whole number
 
-1. Suitability Score (just one number between 0 and 100): Write it like "Suitability Score: 27".
+Key Matching Points:
+- [Brief bullet point 1]
+- [Brief bullet point 2]
+- [Brief bullet point 3]
 
-2. Key Matching Points: List what makes you suitable (e.g., "You have experience in...").
+Weak or Missing Qualifications:
+- [Brief bullet point 1]
+- [Brief bullet point 2]
+- [Brief bullet point 3]
 
-3. Weak or Missing Qualifications: Point out what's missing (e.g., "You don’t mention...").
+Suggestions for Improvement:
+- [Actionable suggestion 1]
+- [Actionable suggestion 2]
+- [Actionable suggestion 3]
 
-4. Suggestions for Improvement: Suggest specific improvements.
+Evaluation Criteria:
+1. Match of skills, certifications, and experience to the role requirements.
+2. Alignment of industry and job function.
+3. Evidence of relevant achievements or measurable results.
+4. Education or qualifications required.
+5. Use of role-specific keywords found in the job ad.
 
 Resume:
 ${trimmedResume}
 
 Job Ad:
 ${jobAdContent}
+
 `;
 
+    // Send the combined prompt to OpenAI for analysis
     const completion = await openai.chat.completions.create({
       model: MODEL,
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: 1000,
-      temperature: 0.7,
+      max_tokens: 1000, // cap the response so it doesn't ramble
+      temperature: 0.7, // a little variety, but still focused
     });
 
+    // Ship the result back to the client in a simple envelope
     res.json({ result: completion.choices[0].message.content });
   } catch (err) {
     console.error('Error in /api/match-pdf-url:', err);
@@ -83,6 +110,7 @@ ${jobAdContent}
   }
 });
 
+// Boot the server — PORT is set by host in production; fallback for local dev
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`✅ Server running at http://localhost:${PORT}`);
