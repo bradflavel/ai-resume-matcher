@@ -132,6 +132,7 @@ ${jobAdContent}
     }
 
     // Send back the content
+    console.dir(completion, { depth: null });
     const out = completion.choices?.[0]?.message?.content || '';
     console.log('AI result length:', out.length, 'first 120 chars:', out.slice(0, 120));
     return res.json({ result: out });
