@@ -113,38 +113,40 @@ Job Ad:
 ${jobAdContent}
 `;
 
-    // --- Build GPT payload (GPT-5 vs older models) --------------------------
+    // --- Call OpenAI via Responses API --------------
     const isG5 = /^gpt-5/i.test(MODEL);
-    const payload = {
-      model: MODEL,
-      messages: [{ role: 'user', content: prompt }],
-      ...(isG5 ? { max_completion_tokens: 800, temperature: 1 } : { max_tokens: 800, temperature: 0.7 }),
-    };
 
-    // --- Call OpenAI --------------------------------------------------------
-    let completion;
+    let aiResp;
     try {
-      completion = await openai.chat.completions.create(payload);
+      aiResp = await openai.responses.create({
+        model: MODEL,
+        input: [
+          // optional system nudge helps structure
+          { role: 'system', content: 'You are an experienced technical recruiter. Be concise and follow the requested format exactly.' },
+          { role: 'user', content: prompt }
+        ],
+        ...(isG5
+          ? { max_output_tokens: 800, temperature: 1 }
+          : { max_output_tokens: 800, temperature: 0.7 }
+        ),
+      });
     } catch (e) {
-      console.error('OpenAI error:', e.status || e.response?.status, e.response?.data || e.message);
-      return res
-        .status(502)
-        .json({ error: e.response?.data?.error?.message || e.message || 'AI request failed.' });
+      console.error('OpenAI error (responses):', e.status || e.response?.status, e.response?.data || e.message);
+      return res.status(502).json({
+        error: e.response?.data?.error?.message || e.message || 'AI request failed.',
+      });
     }
 
-    // --- Extract text robustly (GPT-5 returns output_text) ------------------
-    const out =
-      (typeof completion.output_text === 'string' && completion.output_text.trim()) ||
-      (completion.choices?.[0]?.message?.content ?? '').trim();
+    // Prefer the unified output field
+    console.dir(aiResp, { depth: null });
+    const out = (aiResp.output_text || '').trim();
 
-    console.log('Finish reason:', completion.choices?.[0]?.finish_reason);
     console.log('Final out length:', out.length, 'first 120:', out.slice(0, 120));
 
     if (!out) {
       return res.status(502).json({ error: 'Model returned empty text. Please try again.' });
     }
 
-    // --- Send back to client ------------------------------------------------
     return res.json({ result: out });
   } catch (err) {
     console.error('Error in /api/match-pdf-url:', err);
