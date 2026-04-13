@@ -19,7 +19,19 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter); // Only throttle the API routes
 
-const upload = multer(); // Handle multipart/form-data (for the PDF upload)
+// Cap uploads at 10MB so a huge PDF can't blow up memory
+const upload = multer({ limits: { fileSize: 10 * 1024 * 1024 } });
+
+// Wrap upload.single so we can return a 413 instead of a generic 500
+function handleResumeUpload(req, res, next) {
+  upload.single('resume')(req, res, (err) => {
+    if (err && err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ error: 'File too large. Max size is 10MB.' });
+    }
+    if (err) return next(err);
+    next();
+  });
+}
 
 // OpenAI client setup — pulls the key from the environment
 const openai = new OpenAI({
@@ -31,7 +43,7 @@ const MODEL = process.env.OPENAI_MODEL || 'gpt-5';
 
 // POST /api/match-pdf-url
 // Accepts: resume PDF + either a job ad URL or the full job ad text
-app.post('/api/match-pdf-url', upload.single('resume'), async (req, res) => {
+app.post('/api/match-pdf-url', handleResumeUpload, async (req, res) => {
   try {
     const { inputMode, jobAdUrl, jobAdText } = req.body;
     const resumeFile = req.file;
