@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const OpenAI = require('openai');
 const multer = require('multer');
@@ -8,6 +9,7 @@ require('dotenv').config(); // Load .env variables (API keys, PORT, etc.)
 
 const app = express();
 app.set('trust proxy', 1); // Trust proxy headers (helpful on hosts like Render)
+app.use(helmet());
 // Only allow the frontends listed in ALLOWED_ORIGINS (comma-separated)
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
   .split(',')
@@ -185,17 +187,15 @@ ${jobAdContent}
     try {
       // 1) Try the configured model first (e.g., GPT-5)
       aiResp = await runModelOnce(MODEL, prompt);
-      console.dir(aiResp, { depth: null });
 
       let out = extractText(aiResp);
       const finish = aiResp.incomplete_details?.reason || aiResp.status;
-      console.log('Finish reason:', finish, '| out length:', out.length, '| first 120:', out.slice(0, 120));
+      console.log('Finish reason:', finish, '| out length:', out.length);
 
       // 2) If empty or cut by token limit, retry once with a reliable non-reasoning model
       if (!out || finish === 'max_output_tokens') {
         console.warn('Empty/trimmed output; falling back to gpt-4o-mini…');
         const fb = await runModelOnce('gpt-4o-mini', prompt);
-        console.dir(fb, { depth: null });
         out = extractText(fb);
 
         if (!out) {
@@ -207,10 +207,9 @@ ${jobAdContent}
 
       return res.json({ result: out });
     } catch (e) {
+      // Log the full error server-side but don't leak provider details to the client
       console.error('OpenAI error (responses):', e.status || e.response?.status, e.response?.data || e.message);
-      return res.status(502).json({
-        error: e.response?.data?.error?.message || e.message || 'AI request failed.',
-      });
+      return res.status(502).json({ error: 'AI request failed. Please try again.' });
     }
   } catch (err) {
     console.error('Error in /api/match-pdf-url:', err);
