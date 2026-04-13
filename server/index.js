@@ -8,7 +8,12 @@ require('dotenv').config(); // Load .env variables (API keys, PORT, etc.)
 
 const app = express();
 app.set('trust proxy', 1); // Trust proxy headers (helpful on hosts like Render)
-app.use(cors()); // Allow the frontend (different origin) to call this API
+// Only allow the frontends listed in ALLOWED_ORIGINS (comma-separated)
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+app.use(cors({ origin: allowedOrigins }));
 app.use(express.json()); // Parse JSON bodies on incoming requests
 
 // Basic safety net: throttle how often a single IP can hit the API
@@ -19,7 +24,30 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter); // Only throttle the API routes
 
-const upload = multer(); // Handle multipart/form-data (for the PDF upload)
+// Cap uploads at 10MB so a huge PDF can't blow up memory
+const upload = multer({
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype !== 'application/pdf') {
+      return cb(new Error('NOT_PDF'));
+    }
+    cb(null, true);
+  },
+});
+
+// Wrap upload.single so we can return a 413 instead of a generic 500
+function handleResumeUpload(req, res, next) {
+  upload.single('resume')(req, res, (err) => {
+    if (err && err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ error: 'File too large. Max size is 10MB.' });
+    }
+    if (err && err.message === 'NOT_PDF') {
+      return res.status(400).json({ error: 'Only PDF files are allowed.' });
+    }
+    if (err) return next(err);
+    next();
+  });
+}
 
 // OpenAI client setup — pulls the key from the environment
 const openai = new OpenAI({
@@ -31,7 +59,7 @@ const MODEL = process.env.OPENAI_MODEL || 'gpt-5';
 
 // POST /api/match-pdf-url
 // Accepts: resume PDF + either a job ad URL or the full job ad text
-app.post('/api/match-pdf-url', upload.single('resume'), async (req, res) => {
+app.post('/api/match-pdf-url', handleResumeUpload, async (req, res) => {
   try {
     const { inputMode, jobAdUrl, jobAdText } = req.body;
     const resumeFile = req.file;
