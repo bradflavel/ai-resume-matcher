@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const dns = require('dns');
 const OpenAI = require('openai');
 const multer = require('multer');
 const pdfParse = require('pdf-parse');
@@ -91,13 +92,56 @@ app.post('/api/match-pdf-url', handleResumeUpload, async (req, res) => {
       jobAdContent = (jobAdText || '').slice(0, 8000);
     } else {
       let url = jobAdUrl;
-      if (!/^https?:\/\//i.test(url)) url = 'https://' + url; // normalize bare domains
+      if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+
+      // make sure the url is valid and uses http/https
+      let parsed;
       try {
-        const r = await fetch(url);
+        parsed = new URL(url);
+      } catch {
+        return res.status(400).json({ error: 'Invalid URL.' });
+      }
+      if (!['http:', 'https:'].includes(parsed.protocol)) {
+        return res.status(400).json({ error: 'Only http and https URLs are allowed.' });
+      }
+
+      // don't let users point us at internal/private addresses
+      const host = parsed.hostname;
+      if (/^(localhost|127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|169\.254\.|0\.0\.0\.0|::1|\[::1\])/.test(host)) {
+        return res.status(400).json({ error: 'That URL is not allowed.' });
+      }
+
+      // also check where the hostname actually resolves to, in case
+      // someone points a public domain at a private ip
+      try {
+        const { address } = await dns.promises.lookup(host);
+        if (/^(127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|169\.254\.|0\.0\.0\.0)/.test(address)) {
+          return res.status(400).json({ error: 'That URL is not allowed.' });
+        }
+      } catch {
+        return res.status(400).json({ error: 'Could not resolve that URL.' });
+      }
+
+      try {
+        // 5s timeout so a slow or hanging url doesn't hold up the server
+        const r = await fetch(url, {
+          signal: AbortSignal.timeout(5000),
+          redirect: 'follow',
+        });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
+
+        // only accept html or text responses, not random binary stuff
+        const contentType = r.headers.get('content-type') || '';
+        if (!/text\/(html|plain)/i.test(contentType)) {
+          return res.status(400).json({ error: 'URL did not return a text or HTML page.' });
+        }
+
         jobAdContent = (await r.text()).slice(0, 8000);
       } catch (e) {
-        console.error('Fetch job ad failed:', e);
+        if (e.name === 'TimeoutError') {
+          return res.status(400).json({ error: 'URL took too long to respond.' });
+        }
+        console.error('Fetch job ad failed:', e.message);
         return res.status(400).json({ error: 'Failed to fetch job ad from the provided URL.' });
       }
     }
