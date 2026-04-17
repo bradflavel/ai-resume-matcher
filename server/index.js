@@ -25,7 +25,10 @@ const limiter = rateLimit({
   max: 5, // max 5 requests per hour per IP
   message: { error: 'Too many requests — try again in an hour.' },
 });
-app.use('/api/', limiter); // Only throttle the API routes
+// skip rate limiting in tests so we can hammer endpoints fast
+if (process.env.NODE_ENV !== 'test') {
+  app.use('/api/', limiter); // Only throttle the API routes
+}
 
 // Cap uploads at 10MB so a huge PDF can't blow up memory
 const upload = multer({
@@ -275,8 +278,14 @@ app.get('/healthz', (_req, res) => {
 });
 
 // Boot the server — PORT is set by host in production; fallback for local dev
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`✅ Server running at http://localhost:${PORT}`);
-  console.log(`✅ Server running at http://localhost:${PORT} (healthz v2)`);
-});
+// don't bind a port in tests, we just want to import the app into supertest
+if (process.env.NODE_ENV !== 'test') {
+  const PORT = process.env.PORT || 3001;
+  app.listen(PORT, () => {
+    console.log(`✅ Server running at http://localhost:${PORT}`);
+    console.log(`✅ Server running at http://localhost:${PORT} (healthz v2)`);
+  });
+}
+
+// export the app so supertest can hit it without starting a real server
+module.exports = app;
