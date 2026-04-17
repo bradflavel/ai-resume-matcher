@@ -4,8 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "coverage": "vitest run --coverage"
   },
   "keywords": [],
   "author": "",
@@ -19,5 +21,10 @@
     "multer": "^2.0.1",
     "openai": "^5.1.1",
     "pdf-parse": "^1.1.1"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.4",
+    "supertest": "^7.2.2",
+    "vitest": "^4.1.4"
   }
 }
