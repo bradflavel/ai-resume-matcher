@@ -1,12 +1,15 @@
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
-const dns = require('dns');
-const OpenAI = require('openai');
-const multer = require('multer');
-const pdfParse = require('pdf-parse');
-require('dotenv').config(); // Load .env variables (API keys, PORT, etc.)
+// Load .env variables (API keys, PORT, etc.) before anything that reads them
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import dns from 'dns';
+import OpenAI from 'openai';
+import multer from 'multer';
+// import the inner module directly, pdf-parse's top-level index runs a
+// debug PDF load at import time under ESM which breaks the server startup
+import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 
 const app = express();
 app.set('trust proxy', 1); // Trust proxy headers (helpful on hosts like Render)
@@ -288,4 +291,4 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 // export the app so supertest can hit it without starting a real server
-module.exports = app;
+export default app;

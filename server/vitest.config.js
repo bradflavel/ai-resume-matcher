@@ -9,6 +9,9 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     include: ['test/**/*.test.js'],
+    // setup runs before each test file, sets NODE_ENV and fake api keys
+    // so index.js sees them when it loads
+    setupFiles: ['./test/setup.js'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
