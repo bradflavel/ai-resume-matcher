@@ -18,6 +18,13 @@ export default defineConfig({
       include: ['src/**/*.{js,jsx}'],
       // the entry file and css don't need coverage, neither does the test folder itself
       exclude: ['src/main.jsx', 'src/test/**', '**/*.test.{js,jsx}'],
+      // set ~5% below what we measured so CI stays strict without flaking
+      thresholds: {
+        statements: 90,
+        branches: 80,
+        functions: 85,
+        lines: 90,
+      },
     },
   },
 });

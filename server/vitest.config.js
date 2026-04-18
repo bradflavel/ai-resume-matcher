@@ -17,6 +17,14 @@ export default defineConfig({
       reporter: ['text', 'html'],
       include: ['index.js'],
       exclude: ['test/**', 'node_modules/**'],
+      // set ~5% below the actual numbers we measured, keeps CI honest
+      // without flaking every time a small branch sneaks in uncovered
+      thresholds: {
+        statements: 85,
+        branches: 75,
+        functions: 85,
+        lines: 85,
+      },
     },
   },
 });
