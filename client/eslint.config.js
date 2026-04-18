@@ -30,4 +30,22 @@ export default [
       ],
     },
   },
+  // test files get the vitest globals, without this eslint complains about
+  // describe, it, expect, vi, etc. since they're injected by vitest at runtime
+  {
+    files: ['**/*.test.{js,jsx}', 'src/test/**/*.{js,jsx}'],
+    languageOptions: {
+      globals: {
+        describe: 'readonly',
+        it: 'readonly',
+        test: 'readonly',
+        expect: 'readonly',
+        vi: 'readonly',
+        beforeAll: 'readonly',
+        beforeEach: 'readonly',
+        afterAll: 'readonly',
+        afterEach: 'readonly',
+      },
+    },
+  },
 ]
