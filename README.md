@@ -71,6 +71,47 @@ The client runs on http://localhost:5173 and talks to http://localhost:3001 by d
 
 ---
 
+## API
+
+Single endpoint. Multipart form upload in, validated JSON out.
+
+**`POST /api/match-pdf-url`** — `multipart/form-data`
+
+| field        | type           | notes                                          |
+| ------------ | -------------- | ---------------------------------------------- |
+| `resume`     | PDF file       | required, 10 MB max, `application/pdf` only    |
+| `inputMode`  | string         | `"link"` or `"text"`                           |
+| `jobAdUrl`   | string         | required when `inputMode` is `"link"`          |
+| `jobAdText`  | string         | required when `inputMode` is `"text"`          |
+
+**200 response** (validated server-side with [zod](https://zod.dev)):
+
+```json
+{
+  "score": 82,
+  "matches": ["...", "..."],
+  "weaknesses": ["...", "..."],
+  "suggestions": ["...", "..."]
+}
+```
+
+The model is constrained by OpenAI's structured outputs feature (`response_format: json_schema`, strict mode), so the JSON shape is enforced at generation time, then re-validated on the server as a safety net.
+
+**Error responses**
+
+| status | when                                                         |
+| ------ | ------------------------------------------------------------ |
+| 400    | missing field, non-PDF upload, invalid or blocked URL, non-HTML fetch |
+| 413    | PDF larger than 10 MB                                        |
+| 429    | rate limit exceeded (5 requests per hour per IP in production) |
+| 502    | AI provider error, malformed JSON, or output failed schema validation |
+
+Error bodies are shaped as `{ "error": "human-readable message" }` with provider details stripped.
+
+**Health checks:** `GET /` returns `OK`, `GET /healthz` returns `{ "status": "ok" }`.
+
+---
+
 ## Testing
 
 Both projects use Vitest with coverage thresholds enforced in CI.
