@@ -9,7 +9,8 @@ function App() {
   const [jobAdInput, setJobAdInput] = useState('');
   // "link" = paste job ad URL, "text" = paste full job ad text
   const [inputMode, setInputMode] = useState('link');
-  const [result, setResult] = useState('');
+  // backend returns { score, matches, weaknesses, suggestions } or null before any submission
+  const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
 
@@ -48,16 +49,13 @@ function App() {
     try {
       const response = await axios.post(`${API_BASE}/api/match-pdf-url`, formData);
 
-      console.log('HTTP', response.status, response.data);
-      const text = response.data?.result || '';
-      console.log('result length', text.length);
-
-      if (!text) {
+      const data = response.data;
+      if (!data || typeof data.score !== 'number') {
         toast.error('No analysis returned. Try a smaller PDF or try again.');
         return;
       }
 
-      setResult(text);
+      setResult(data);
     } catch (err) {
       console.error('Submission error:', err);
       toast.error('Error: ' + (err.response?.data?.error || err.message));
@@ -144,7 +142,7 @@ function App() {
           <div className="basis-[55%] flex-grow min-h-[500px] bg-card border border-border p-6 rounded-lg shadow overflow-x-auto">
             <h2 className="text-lg font-semibold mb-4">Result:</h2>
             {result ? (
-              <pre className="whitespace-pre-wrap text-sm">{result}</pre>
+              <StructuredResult result={result} />
             ) : (
               <p className="text-muted-foreground text-sm italic">No result yet.</p>
             )}

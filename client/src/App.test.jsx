@@ -34,15 +34,20 @@ function makePdf(name = 'resume.pdf') {
   return new File(['fake-pdf-bytes'], name, { type: 'application/pdf' });
 }
 
+// sample json the backend would return, matches the server's zod schema
+const sampleResult = {
+  score: 80,
+  matches: ['Top match one', 'Top match two'],
+  weaknesses: ['Gap one'],
+  suggestions: ['Do the thing'],
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   // reset the dark class between tests, the theme toggle test mutates it
   document.documentElement.classList.remove('dark');
   // default happy-path axios response, individual tests override when needed
-  mocks.axiosPost.mockResolvedValue({
-    status: 200,
-    data: { result: 'Suitability Score: 80\n\n(test result body)' },
-  });
+  mocks.axiosPost.mockResolvedValue({ status: 200, data: sampleResult });
 });
 
 describe('App — initial render', () => {
@@ -137,7 +142,7 @@ describe('App — submit validation', () => {
 });
 
 describe('App — submit happy path', () => {
-  it('posts to the API and renders the result text', async () => {
+  it('posts to the API and renders the structured result', async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
 
@@ -149,7 +154,10 @@ describe('App — submit happy path', () => {
     // FormData is the second arg, just check the URL shape of the first arg
     expect(mocks.axiosPost.mock.calls[0][0]).toMatch(/\/api\/match-pdf-url$/);
 
-    expect(await screen.findByText(/\(test result body\)/i)).toBeInTheDocument();
+    // score, a match item, and a suggestion should all be in the rendered output
+    expect(await screen.findByText(/80 \/ 100/)).toBeInTheDocument();
+    expect(screen.getByText(/Top match one/)).toBeInTheDocument();
+    expect(screen.getByText(/Do the thing/)).toBeInTheDocument();
     expect(mocks.toastError).not.toHaveBeenCalled();
   });
 });
@@ -173,8 +181,9 @@ describe('App — submit failures', () => {
     expect(mocks.toastError).toHaveBeenCalledWith(expect.stringContaining('File too large.'));
   });
 
-  it('shows an error toast when the API returns an empty result', async () => {
-    mocks.axiosPost.mockResolvedValue({ status: 200, data: { result: '' } });
+  it('shows an error toast when the API returns a response missing score', async () => {
+    // missing score, the client treats this as "no analysis"
+    mocks.axiosPost.mockResolvedValue({ status: 200, data: {} });
     const user = userEvent.setup();
     const { container } = render(<App />);
 
@@ -206,6 +215,6 @@ describe('App — loading state', () => {
     expect(button).toBeDisabled();
 
     // let the request finish so the test can unwind cleanly
-    resolveIt({ status: 200, data: { result: 'done' } });
+    resolveIt({ status: 200, data: sampleResult });
   });
 });
