@@ -8,9 +8,12 @@ import {
   aiSuccess,
   aiTruncated,
   aiNestedOutput,
+  aiMalformedJson,
+  aiSchemaMismatch,
   htmlFetchResponse,
   binaryFetchResponse,
   timeoutError,
+  defaultResultObj,
 } from './helpers/mocks.js';
 
 // hoisted so the refs exist before vi.mock factories run
@@ -66,7 +69,7 @@ beforeEach(() => {
 });
 
 describe('POST /api/match-pdf-url happy path', () => {
-  it('returns a result for text mode', async () => {
+  it('returns a structured JSON body for text mode', async () => {
     const res = await request(app)
       .post('/api/match-pdf-url')
       .attach('resume', pdfBuffer, { filename: 'resume.pdf', contentType: 'application/pdf' })
@@ -74,11 +77,15 @@ describe('POST /api/match-pdf-url happy path', () => {
       .field('jobAdText', 'Looking for a senior Node.js engineer');
 
     expect(res.status).toBe(200);
-    expect(res.body.result).toContain('Suitability Score');
+    expect(res.body.score).toBe(defaultResultObj.score);
+    expect(Array.isArray(res.body.matches)).toBe(true);
+    expect(Array.isArray(res.body.weaknesses)).toBe(true);
+    expect(Array.isArray(res.body.suggestions)).toBe(true);
+    expect(res.body.matches.length).toBeGreaterThan(0);
     expect(mocks.openaiCreate).toHaveBeenCalledTimes(1);
   });
 
-  it('returns a result for link mode', async () => {
+  it('returns a structured JSON body for link mode', async () => {
     const res = await request(app)
       .post('/api/match-pdf-url')
       .attach('resume', pdfBuffer, { filename: 'resume.pdf', contentType: 'application/pdf' })
@@ -86,16 +93,19 @@ describe('POST /api/match-pdf-url happy path', () => {
       .field('jobAdUrl', 'https://example.com/job');
 
     expect(res.status).toBe(200);
-    expect(res.body.result).toContain('Suitability Score');
+    expect(typeof res.body.score).toBe('number');
+    expect(res.body.score).toBeGreaterThanOrEqual(0);
+    expect(res.body.score).toBeLessThanOrEqual(100);
     // dns check + fetch should have both run for a link-mode request
     expect(mocks.dnsLookup).toHaveBeenCalled();
     expect(fetch).toHaveBeenCalled();
   });
 
   it('falls back to gpt-4o-mini when the primary model returns truncated output', async () => {
+    const fallbackResult = { ...defaultResultObj, score: 70 };
     mocks.openaiCreate
       .mockResolvedValueOnce(aiTruncated())
-      .mockResolvedValueOnce(aiSuccess('Suitability Score: 70\n\n(fallback output)'));
+      .mockResolvedValueOnce(aiSuccess(fallbackResult));
 
     const res = await request(app)
       .post('/api/match-pdf-url')
@@ -104,12 +114,13 @@ describe('POST /api/match-pdf-url happy path', () => {
       .field('jobAdText', 'Role');
 
     expect(res.status).toBe(200);
-    expect(res.body.result).toContain('fallback');
+    expect(res.body.score).toBe(70);
     expect(mocks.openaiCreate).toHaveBeenCalledTimes(2);
   });
 
   it('handles the nested output[] format from the responses api', async () => {
-    mocks.openaiCreate.mockResolvedValue(aiNestedOutput('Suitability Score: 88\n\nKey Matching Points:\n- ok'));
+    const altResult = { ...defaultResultObj, score: 88 };
+    mocks.openaiCreate.mockResolvedValue(aiNestedOutput(altResult));
 
     const res = await request(app)
       .post('/api/match-pdf-url')
@@ -118,7 +129,7 @@ describe('POST /api/match-pdf-url happy path', () => {
       .field('jobAdText', 'Role');
 
     expect(res.status).toBe(200);
-    expect(res.body.result).toContain('Suitability Score: 88');
+    expect(res.body.score).toBe(88);
   });
 });
 
@@ -306,5 +317,29 @@ describe('POST /api/match-pdf-url openai failures', () => {
 
     expect(res.status).toBe(502);
     expect(res.body.error).toMatch(/empty/i);
+  });
+
+  it('502 when the model returns malformed JSON', async () => {
+    mocks.openaiCreate.mockResolvedValue(aiMalformedJson());
+    const res = await request(app)
+      .post('/api/match-pdf-url')
+      .attach('resume', pdfBuffer, { filename: 'resume.pdf', contentType: 'application/pdf' })
+      .field('inputMode', 'text')
+      .field('jobAdText', 'Role');
+
+    expect(res.status).toBe(502);
+    expect(res.body.error).toMatch(/malformed/i);
+  });
+
+  it('502 when the model returns JSON with the wrong shape', async () => {
+    mocks.openaiCreate.mockResolvedValue(aiSchemaMismatch());
+    const res = await request(app)
+      .post('/api/match-pdf-url')
+      .attach('resume', pdfBuffer, { filename: 'resume.pdf', contentType: 'application/pdf' })
+      .field('inputMode', 'text')
+      .field('jobAdText', 'Role');
+
+    expect(res.status).toBe(502);
+    expect(res.body.error).toMatch(/shape/i);
   });
 });
